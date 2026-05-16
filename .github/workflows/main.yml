@@ -1,4 +1,4 @@
-name: SSH-VPS-Tmate
+name: SSH-Ngrok-Termux-Fixed
 on: 
   workflow_dispatch:
 
@@ -9,6 +9,40 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Tmate Session
-      uses: mxschmitt/action-tmate@v3
-      
+    - name: Run SSH via Ngrok
+      run: |
+        # 1. تثبيت خادم SSH وإعداده لقبول كلمة المرور
+        sudo apt-get update && sudo apt-get install -y openssh-server unzip
+        echo "root:rootpassword" | sudo chpasswd
+        sudo mkdir -p /var/run/sshd
+        
+        # تعديل ملف الإعدادات لضمان تفعيل كلمة المرور والـ Root
+        sudo sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        
+        sudo service ssh restart
+        
+        # 2. تحميل وتثبيت Ngrok
+        wget -q https://bin.equinox.io/c/b3419c4fe1f/ngrok-stable-linux-amd64.zip
+        unzip -q ngrok-stable-linux-amd64.zip
+        sudo mv ngrok /usr/local/bin/
+        
+        # 3. ربط حسابك بالتوكن (ضع التوكن الخاص بك مكان XXXXXXX)
+        ngrok authtoken 2Km7kgNws0g9aXtH4ZzdxzK6R9Z_2qGLQM9mJNeP5XLBfbTbf
+        
+        # 4. تشغيل النفق لمنفذ الـ SSH
+        ngrok tcp 22 > /dev/null &
+        
+        # الانتظار 10 ثوانٍ لضمان استقرار الاتصال
+        sleep 10
+        
+        # 5. جلب أمر الاتصال المباشر لـ Termux
+        echo "=========================================================="
+        echo "💻 انسخ الأمر أدناه وضعه في Termux مباشرة:"
+        echo "=========================================================="
+        curl -s http://localhost:4040/api/tunnels | grep -o 'tcp://[^"]*' | sed 's/tcp:\/\//ssh root@/' | sed 's/:/ -p /'
+        echo "=========================================================="
+        
+        # إبقاء السيرفر يعمل لمدة 6 ساعات
+        sleep 21600
