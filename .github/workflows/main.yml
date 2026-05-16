@@ -1,4 +1,4 @@
-name: SSH-Cloudflare-Termux-Final
+name: SSH-Cloudflare-Termux-Pure
 on: 
   workflow_dispatch:
 
@@ -9,34 +9,33 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Run Web SSH Server
+    - name: Run Pure SSH Tunnel
       run: |
-        # 1. تثبيت وتجهيز خادم SSH وتعيين كلمة المرور
+        # 1. تثبيت وتجهيز خادم SSH وتعيين الباسورد والملفات الأساسية
         sudo apt-get update && sudo apt-get install -y openssh-server
         echo "root:rootpassword" | sudo chpasswd
         sudo mkdir -p /var/run/sshd
         
-        # 2. تحميل وتثبيت أداة ttyd لتحويل الـ SSH إلى صفحة ويب
-        sudo wget -O /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64
-        sudo chmod +x /usr/local/bin/ttyd
-        ttyd -p 7681 bash &
+        # إعدادات السماح للـ Root بكلمة مرور
+        sudo sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo service ssh restart
         
-        # 3. تحميل وتثبيت أداة Cloudflare
+        # 2. تحميل وتثبيت أداة Cloudflare الرسمية للسيرفر
         curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
         sudo dpkg -i cloudflared.deb
         
-        # 4. تشغيل نفق Cloudflare وتوجيهه لمنفذ الـ ويب
-        cloudflared tunnel --url http://localhost:7681 > cloudflare.log 2>&1 &
+        # 3. تشغيل النفق المخصص لبروتوكول الـ SSH (منفذ 22)
+        cloudflared tunnel --url ssh://localhost:22 > cloudflare.log 2>&1 &
         
-        # الانتظار 15 ثانية لضمان استقرار الاتصال وتوليد الرابط
-        echo "=== جاري تشغيل النفق وتوليد الرابط... انتظر 15 ثانية ==="
+        # الانتظار 15 ثانية لضمان استقرار الاتصال وجلب الرابط
         sleep 15
         
-        # 5. طباعة الرابط بوضوح
+        # 4. استخراج الرابط بطريقة ذكية
         echo "=========================================================="
-        echo "🔗 انسخ الرابط أدناه وافتحه في المتصفح أو في Termux الجديد:"
-        echo "=========================================================="
-        grep -o 'https://[-a-get-zero-trust-trycloudflare.com]*\.trycloudflare\.com' cloudflare.log | head -n 1
+        echo "🔗 رابط السيرفر الخاص بك هو:"
+        grep -o 'https://[-a-get-zero-trust-trycloudflare.com]*\.trycloudflare\.com' cloudflare.log | head -n 1 | sed 's/https:\/\///'
         echo "=========================================================="
         
         # إبقاء السيرفر حياً لمدة 6 ساعات
