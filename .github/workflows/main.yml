@@ -1,4 +1,4 @@
-name: SSH-Termux-Fixed-Final
+name: SSH-Cloudflare-Termux-Final
 on: 
   workflow_dispatch:
 
@@ -9,40 +9,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up SSH and Ngrok
-      env:
-        NGROK_AUTH_TOKEN: "2Km7kgNws0g9aXtH4ZzdxzK6R9Z_2qGLQM9mJNeP5XLBfbTbf"
+    - name: Run Web SSH Server
       run: |
-        # 1. إعداد وتثبيت خادم SSH وتفعيل كلمة المرور
-        sudo apt-get update && sudo apt-get install -y openssh-server unzip
+        # 1. تثبيت وتجهيز خادم SSH وتعيين كلمة المرور
+        sudo apt-get update && sudo apt-get install -y openssh-server
         echo "root:rootpassword" | sudo chpasswd
         sudo mkdir -p /var/run/sshd
         
-        sudo sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-        sudo sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-        sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-        sudo service ssh restart
+        # 2. تحميل وتثبيت أداة ttyd لتحويل الـ SSH إلى صفحة ويب
+        sudo wget -O /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64
+        sudo chmod +x /usr/local/bin/ttyd
+        ttyd -p 7681 bash &
         
-        # 2. تحميل وتثبيت أداة Ngrok الثنائية مباشرة (تجنباً لمشاكل apt)
-        wget -q https://bin.equinox.io/c/b3419c4fe1f/ngrok-stable-linux-amd64.zip
-        unzip -q ngrok-stable-linux-amd64.zip
-        sudo mv ngrok /usr/local/bin/
+        # 3. تحميل وتثبيت أداة Cloudflare
+        curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+        sudo dpkg -i cloudflared.deb
         
-        # 3. إعداد التوكن وتشغيل النفق في الخلفية لمنفذ الـ SSH
-        ngrok config add-authtoken $NGROK_AUTH_TOKEN
-        ngrok tcp 22 > /dev/null &
+        # 4. تشغيل نفق Cloudflare وتوجيهه لمنفذ الـ ويب
+        cloudflared tunnel --url http://localhost:7681 > cloudflare.log 2>&1 &
         
-        # الانتظار 12 ثانية لضمان استقرار الاتصال وتوليد الرابط
-        echo "=== جاري الاتصال بخوادم Ngrok وتوليد الأمر... انتظر 12 ثانية ==="
-        sleep 12
+        # الانتظار 15 ثانية لضمان استقرار الاتصال وتوليد الرابط
+        echo "=== جاري تشغيل النفق وتوليد الرابط... انتظر 15 ثانية ==="
+        sleep 15
         
-        # 4. طباعة أمر الاتصال المباشر لـ Termux
+        # 5. طباعة الرابط بوضوح
         echo "=========================================================="
-        echo "💻 انسخ هذا الأمر وضعه في Termux مباشرة:"
+        echo "🔗 انسخ الرابط أدناه وافتحه في المتصفح أو في Termux الجديد:"
         echo "=========================================================="
-        curl -s http://localhost:4040/api/tunnels | grep -o 'tcp://[^"]*' | sed 's/tcp:\/\//ssh root@/' | sed 's/:/ -p /'
+        grep -o 'https://[-a-get-zero-trust-trycloudflare.com]*\.trycloudflare\.com' cloudflare.log | head -n 1
         echo "=========================================================="
         
         # إبقاء السيرفر حياً لمدة 6 ساعات
         sleep 21600
-        
