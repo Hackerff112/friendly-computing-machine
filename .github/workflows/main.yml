@@ -1,4 +1,4 @@
-name: SSH-Termux-Perfect
+name: SSH-Termux-Fixed-Final
 on: 
   workflow_dispatch:
 
@@ -13,30 +13,30 @@ jobs:
       env:
         NGROK_AUTH_TOKEN: "2Km7kgNws0g9aXtH4ZzdxzK6R9Z_2qGLQM9mJNeP5XLBfbTbf"
       run: |
-        # 1. تثبيت خادم SSH وإعداده بكلمة مرور
-        sudo apt-get update && sudo apt-get install -y openssh-server
+        # 1. إعداد وتثبيت خادم SSH وتفعيل كلمة المرور
+        sudo apt-get update && sudo apt-get install -y openssh-server unzip
         echo "root:rootpassword" | sudo chpasswd
         sudo mkdir -p /var/run/sshd
         
-        # تفعيل الدخول بكلمة مرور للـ root
         sudo sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
         sudo sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
         sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
         sudo service ssh restart
         
-        # 2. تحميل وتثبيت Ngrok عبر السكريبت الرسمي المضمون
-        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.dev/ngrok.asc >/dev/null
-        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.dev/ngrok.list
-        sudo apt-get update && sudo apt-get install ngrok
+        # 2. تحميل وتثبيت أداة Ngrok الثنائية مباشرة (تجنباً لمشاكل apt)
+        wget -q https://bin.equinox.io/c/b3419c4fe1f/ngrok-stable-linux-amd64.zip
+        unzip -q ngrok-stable-linux-amd64.zip
+        sudo mv ngrok /usr/local/bin/
         
-        # 3. تفعيل التوكن وتشغيل النفق لمنفذ الـ SSH
+        # 3. إعداد التوكن وتشغيل النفق في الخلفية لمنفذ الـ SSH
         ngrok config add-authtoken $NGROK_AUTH_TOKEN
-        ngrok tcp 22 --log=stdout > ngrok.log &
+        ngrok tcp 22 > /dev/null &
         
-        # الانتظار 15 ثانية لضمان توليد البيانات
-        sleep 15
+        # الانتظار 12 ثانية لضمان استقرار الاتصال وتوليد الرابط
+        echo "=== جاري الاتصال بخوادم Ngrok وتوليد الأمر... انتظر 12 ثانية ==="
+        sleep 12
         
-        # 4. استخراج أمر الـ SSH النظيف والمباشر لـ Termux
+        # 4. طباعة أمر الاتصال المباشر لـ Termux
         echo "=========================================================="
         echo "💻 انسخ هذا الأمر وضعه في Termux مباشرة:"
         echo "=========================================================="
@@ -45,3 +45,4 @@ jobs:
         
         # إبقاء السيرفر حياً لمدة 6 ساعات
         sleep 21600
+        
